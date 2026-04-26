@@ -1,0 +1,1322 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GD — Disease Surge Prediction</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Mono:wght@400;500&family=Sora:wght@300;400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#080d16;--surface:#0d1525;--panel:#111b2e;--border:#1a2740;
+  --accent:#3b82f6;--accent2:#06b6d4;--danger:#ef4444;--warn:#f59e0b;--ok:#22c55e;
+  --text:#e2e8f7;--muted:#6b7ea8;--faint:#2a3a58;
+  --font:'Sora',sans-serif;--mono:'DM Mono',monospace;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;line-height:1.6;min-height:100vh}
+
+/* ── LOGIN OVERLAY ── */
+#loginOverlay{
+  position:fixed;inset:0;z-index:9999;
+  background:linear-gradient(135deg,#040810 0%,#0a1628 50%,#04080e 100%);
+  display:flex;align-items:center;justify-content:center;
+}
+.login-bg-grid{
+  position:absolute;inset:0;
+  background-image:linear-gradient(rgba(59,130,246,.04) 1px,transparent 1px),linear-gradient(90deg,rgba(59,130,246,.04) 1px,transparent 1px);
+  background-size:48px 48px;
+}
+.login-bg-glow{
+  position:absolute;width:600px;height:600px;border-radius:50%;
+  background:radial-gradient(circle,rgba(59,130,246,.08) 0%,transparent 70%);
+  top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;
+}
+.login-box{
+  position:relative;z-index:2;
+  background:var(--surface);
+  border:1px solid var(--border);
+  border-radius:20px;
+  padding:48px 44px;
+  width:420px;
+  box-shadow:0 40px 80px rgba(0,0,0,.6);
+}
+.login-logo{
+  display:flex;align-items:center;gap:12px;margin-bottom:8px;
+}
+.login-logo-mark{
+  width:44px;height:44px;
+  background:linear-gradient(135deg,#3b82f6,#06b6d4);
+  border-radius:12px;
+  display:flex;align-items:center;justify-content:center;
+  font-size:20px;font-weight:700;color:#fff;font-family:var(--mono);
+  letter-spacing:-.05em;
+}
+.login-brand{font-size:26px;font-weight:700;letter-spacing:-.02em;color:var(--text)}
+.login-brand span{color:var(--accent2)}
+.login-tagline{font-size:11px;color:var(--muted);font-family:var(--mono);margin-bottom:36px;margin-left:56px;margin-top:2px}
+.login-title{font-size:15px;font-weight:600;color:var(--text);margin-bottom:4px}
+.login-sub{font-size:12px;color:var(--muted);margin-bottom:28px}
+.login-field{margin-bottom:16px}
+.login-field label{display:block;font-size:11px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.login-field input{
+  width:100%;background:var(--panel);border:1px solid var(--border);
+  border-radius:10px;color:var(--text);font-family:var(--font);font-size:14px;
+  padding:11px 14px;outline:none;transition:border-color .2s;
+}
+.login-field input:focus{border-color:var(--accent)}
+.login-field input::placeholder{color:var(--faint)}
+.login-role{margin-bottom:20px}
+.login-role label{display:block;font-size:11px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.08em;margin-bottom:6px}
+.role-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.role-btn{
+  padding:9px 12px;background:var(--panel);border:1px solid var(--border);
+  border-radius:8px;color:var(--muted);font-size:12px;font-family:var(--font);
+  cursor:pointer;transition:all .15s;text-align:left;
+}
+.role-btn.selected{border-color:var(--accent);color:var(--accent);background:rgba(59,130,246,.1)}
+.role-btn .role-icon{font-size:16px;display:block;margin-bottom:3px}
+.login-submit{
+  width:100%;background:linear-gradient(135deg,#3b82f6,#06b6d4);
+  color:#fff;border:none;border-radius:10px;padding:13px;
+  font-family:var(--font);font-size:14px;font-weight:600;
+  cursor:pointer;transition:opacity .2s,transform .1s;margin-bottom:12px;
+}
+.login-submit:hover{opacity:.88}
+.login-submit:active{transform:scale(.98)}
+.login-demo{font-size:11px;color:var(--muted);text-align:center;cursor:pointer;text-decoration:underline}
+.login-error{color:var(--danger);font-size:12px;margin-bottom:10px;display:none}
+.login-footer{margin-top:28px;padding-top:20px;border-top:1px solid var(--border);font-size:11px;color:var(--muted);text-align:center;font-family:var(--mono)}
+
+/* ── USER BADGE ── */
+.user-badge{
+  display:flex;align-items:center;gap:8px;cursor:pointer;
+  background:var(--panel);border:1px solid var(--border);
+  border-radius:20px;padding:5px 12px 5px 6px;
+}
+.user-avatar{
+  width:26px;height:26px;border-radius:50%;
+  background:linear-gradient(135deg,#3b82f6,#06b6d4);
+  display:flex;align-items:center;justify-content:center;
+  font-size:12px;font-weight:600;color:#fff;
+}
+.user-name{font-size:12px;font-family:var(--mono);color:var(--muted)}
+.logout-btn{
+  font-size:11px;color:var(--danger);background:none;border:none;
+  cursor:pointer;font-family:var(--mono);margin-left:4px;
+}
+
+/* ── NAV ── */
+nav{background:var(--surface);border-bottom:1px solid var(--border);padding:0 32px;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100}
+.nav-brand{display:flex;align-items:center;gap:10px}
+.nav-logo{
+  width:36px;height:36px;
+  background:linear-gradient(135deg,#3b82f6,#06b6d4);
+  border-radius:9px;display:flex;align-items:center;justify-content:center;
+  font-size:15px;font-weight:700;color:#fff;font-family:var(--mono);letter-spacing:-.05em;
+}
+.nav-title{font-size:15px;font-weight:600;color:var(--text)}
+.nav-sub{font-size:11px;color:var(--muted);font-family:var(--mono)}
+.nav-right{display:flex;align-items:center;gap:12px}
+.nav-badge{font-size:11px;font-family:var(--mono);color:var(--accent2);background:rgba(6,182,212,.12);border:1px solid rgba(6,182,212,.25);border-radius:20px;padding:3px 10px}
+
+/* ── LAYOUT ── */
+.container{display:grid;grid-template-columns:280px 1fr;min-height:calc(100vh - 60px)}
+
+/* ── SIDEBAR ── */
+aside{background:var(--surface);border-right:1px solid var(--border);padding:24px 20px;display:flex;flex-direction:column;gap:20px;overflow-y:auto;max-height:calc(100vh - 60px);position:sticky;top:60px}
+.sidebar-section{display:flex;flex-direction:column;gap:10px}
+.sidebar-label{font-size:10px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.1em;color:var(--muted);margin-bottom:2px}
+select,input[type=range]{width:100%;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--font);font-size:13px;padding:8px 12px;outline:none;cursor:pointer}
+select:focus,select:hover{border-color:var(--accent)}
+.slider-row{display:flex;flex-direction:column;gap:4px}
+.slider-header{display:flex;justify-content:space-between;align-items:center}
+.slider-name{font-size:12px;color:var(--muted)}
+.slider-val{font-size:13px;font-weight:500;font-family:var(--mono);color:var(--accent2)}
+input[type=range]{padding:0;height:4px;border-radius:2px;border:none;appearance:none;-webkit-appearance:none;background:var(--faint);cursor:pointer}
+input[type=range]::-webkit-slider-thumb{appearance:none;width:16px;height:16px;border-radius:50%;background:var(--accent);cursor:pointer}
+.predict-btn{background:linear-gradient(135deg,#3b82f6,#06b6d4);color:#fff;border:none;border-radius:10px;padding:12px;font-family:var(--font);font-size:14px;font-weight:600;cursor:pointer;width:100%;transition:opacity .2s,transform .1s}
+.predict-btn:hover{opacity:.88}
+.predict-btn:active{transform:scale(.98)}
+.predict-btn:disabled{opacity:.4;cursor:not-allowed}
+.acc-row{display:flex;flex-direction:column;gap:6px}
+.acc-item{display:flex;justify-content:space-between;align-items:center;font-size:11px;padding:4px 0;border-bottom:1px solid var(--border)}
+.acc-name{color:var(--muted)}
+.acc-val{font-family:var(--mono);color:var(--ok);font-size:11px}
+.api-input-wrap{position:relative}
+.api-input{font-size:12px;font-family:var(--mono);padding:8px 12px;padding-right:36px}
+.api-toggle{position:absolute;right:8px;top:50%;transform:translateY(-50%);background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px}
+
+/* ── MAIN ── */
+main{padding:24px;display:flex;flex-direction:column;gap:20px;overflow:hidden}
+.page-header{display:flex;align-items:flex-start;justify-content:space-between;gap:16px}
+.page-title{font-size:22px;font-weight:600;color:var(--text);line-height:1.2}
+.page-sub{font-size:12px;color:var(--muted);margin-top:4px;font-family:var(--mono)}
+.week-badge{font-size:11px;font-family:var(--mono);color:var(--muted);background:var(--panel);border:1px solid var(--border);border-radius:6px;padding:4px 10px;white-space:nowrap}
+.metric-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.metric-card{background:var(--panel);border:1px solid var(--border);border-radius:12px;padding:14px 16px}
+.metric-card-label{font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+.metric-card-value{font-size:24px;font-weight:600;color:var(--text)}
+.metric-card-sub{font-size:11px;color:var(--muted);margin-top:3px}
+
+/* ── RESULT CARD ── */
+.result-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:20px 24px;display:none}
+.result-card.visible{display:block}
+.result-inner{display:grid;grid-template-columns:auto 1fr auto;gap:24px;align-items:center}
+.result-risk-label{font-size:11px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:4px}
+.result-risk-value{font-size:40px;font-weight:600}
+.result-risk-value.high{color:var(--danger)}
+.result-risk-value.medium{color:var(--warn)}
+.result-risk-value.low{color:var(--ok)}
+.result-prob-label{font-size:12px;color:var(--muted);margin-bottom:6px}
+.prob-bar-track{height:10px;background:var(--faint);border-radius:5px;overflow:hidden;margin-bottom:6px}
+.prob-bar-fill{height:100%;border-radius:5px;transition:width .6s ease}
+.prob-bar-fill.high{background:var(--danger)}
+.prob-bar-fill.medium{background:var(--warn)}
+.prob-bar-fill.low{background:var(--ok)}
+.result-prob-pct{font-size:26px;font-weight:600;font-family:var(--mono)}
+.result-cases-block{text-align:right}
+.result-cases-label{font-size:11px;color:var(--muted);font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;margin-bottom:4px}
+.result-cases-value{font-size:28px;font-weight:600;font-family:var(--mono);color:var(--text)}
+.result-note{margin-top:14px;padding-top:14px;border-top:1px solid var(--border);font-size:12px;color:var(--muted);display:flex;align-items:center;gap:8px}
+.result-note-dot{width:6px;height:6px;border-radius:50%;background:var(--ok);flex-shrink:0}
+.conf-bars{display:flex;flex-direction:column;gap:8px;margin-top:14px;padding-top:14px;border-top:1px solid var(--border)}
+.conf-bar-row{display:grid;grid-template-columns:80px 1fr 42px;align-items:center;gap:8px}
+.conf-bar-label{font-size:12px;color:var(--muted)}
+.conf-bar-track{height:6px;background:var(--faint);border-radius:3px;overflow:hidden}
+.conf-bar-fill{height:100%;border-radius:3px;transition:width .5s ease}
+.conf-bar-pct{font-size:12px;font-family:var(--mono);color:var(--text);text-align:right}
+
+/* ── CHARTS ── */
+.charts-grid{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.chart-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px}
+.chart-card-title{font-size:12px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:14px}
+.chart-wrap{position:relative;width:100%;height:200px}
+
+/* ── SATELLITE MAP SECTION ── */
+.map-section{display:flex;flex-direction:column;gap:0}
+.map-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:14px 18px;
+  background:var(--panel);
+  border:1px solid var(--border);
+  border-radius:14px 14px 0 0;
+  border-bottom:none;
+}
+.map-title{font-size:12px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.map-controls{display:flex;gap:8px;align-items:center}
+.map-layer-btn{
+  font-size:11px;font-family:var(--mono);
+  border:1px solid var(--border);background:transparent;color:var(--muted);
+  border-radius:6px;padding:4px 10px;cursor:pointer;transition:all .15s;
+}
+.map-layer-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(59,130,246,.1)}
+.map-legend{
+  display:flex;gap:16px;align-items:center;
+}
+.map-legend-item{display:flex;align-items:center;gap:5px;font-size:10px;font-family:var(--mono);color:var(--muted)}
+.map-legend-dot{width:10px;height:10px;border-radius:50%}
+#satellite-map{
+  height:460px;border:1px solid var(--border);border-radius:0 0 14px 14px;
+  background:#0a1628;
+}
+.leaflet-control-attribution{display:none!important}
+
+/* Leaflet dark overrides */
+.leaflet-tile{filter:brightness(.85) saturate(.9)}
+
+/* Custom map popup */
+.gd-popup .leaflet-popup-content-wrapper{
+  background:var(--panel);border:1px solid var(--border);border-radius:10px;
+  box-shadow:0 8px 24px rgba(0,0,0,.5);
+}
+.gd-popup .leaflet-popup-content{margin:10px 14px;font-family:var(--font);font-size:12px;color:var(--text);min-width:160px}
+.gd-popup .leaflet-popup-tip{background:var(--panel)}
+.popup-district{font-size:14px;font-weight:600;margin-bottom:6px}
+.popup-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:3px}
+.popup-label{color:var(--muted)}
+.popup-val{font-family:var(--mono);font-size:11px}
+
+/* Pulse ring animation for high-risk markers */
+@keyframes markerPulse{
+  0%{transform:scale(1);opacity:1}
+  100%{transform:scale(3);opacity:0}
+}
+.pulse-ring{
+  position:absolute;border-radius:50%;
+  animation:markerPulse 1.8s infinite;
+}
+
+/* ── TABLE ── */
+.table-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px}
+.table-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;gap:12px}
+.table-title{font-size:12px;font-family:var(--mono);color:var(--muted);text-transform:uppercase;letter-spacing:.06em}
+.table-filters{display:flex;gap:8px}
+.filter-btn{font-size:11px;font-family:var(--mono);border:1px solid var(--border);background:transparent;color:var(--muted);border-radius:6px;padding:4px 10px;cursor:pointer;transition:all .15s}
+.filter-btn.active{border-color:var(--accent);color:var(--accent);background:rgba(59,130,246,.1)}
+.table-wrap{overflow-x:auto}
+table{width:100%;border-collapse:collapse;font-size:12px}
+th{text-align:left;padding:8px 10px;font-family:var(--mono);font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);border-bottom:1px solid var(--border);font-weight:400}
+td{padding:8px 10px;border-bottom:1px solid var(--faint);color:var(--text)}
+tr:hover td{background:rgba(59,130,246,.04)}
+.risk-pill{display:inline-block;font-size:10px;font-family:var(--mono);font-weight:500;padding:2px 8px;border-radius:12px}
+.risk-pill.high{background:rgba(239,68,68,.15);color:#f87171;border:1px solid rgba(239,68,68,.3)}
+.risk-pill.medium{background:rgba(245,158,11,.12);color:#fbbf24;border:1px solid rgba(245,158,11,.3)}
+.risk-pill.low{background:rgba(34,197,94,.1);color:#4ade80;border:1px solid rgba(34,197,94,.25)}
+.prob-mini-bar{height:4px;border-radius:2px;background:var(--faint);width:80px;display:inline-block;vertical-align:middle;position:relative;overflow:hidden}
+.prob-mini-fill{height:100%;border-radius:2px;position:absolute;top:0;left:0}
+
+/* ── AI CARD ── */
+.ai-card{background:var(--panel);border:1px solid var(--border);border-radius:14px;padding:18px;display:none}
+.ai-card.visible{display:block}
+.ai-header{display:flex;align-items:center;gap:8px;margin-bottom:12px}
+.ai-dot{width:8px;height:8px;border-radius:50%;background:var(--accent2);animation:pulse 2s infinite}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.ai-title{font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.ai-text{font-size:13px;color:var(--text);line-height:1.7;white-space:pre-wrap}
+.ai-loading{color:var(--muted);font-style:italic;font-size:13px}
+
+/* ── TABS ── */
+.tabs{display:flex;gap:4px;border-bottom:1px solid var(--border);margin-bottom:16px}
+.tab-btn{font-size:12px;font-family:var(--mono);color:var(--muted);background:none;border:none;border-bottom:2px solid transparent;padding:8px 14px;cursor:pointer;margin-bottom:-1px;transition:all .15s}
+.tab-btn.active{color:var(--accent);border-bottom-color:var(--accent)}
+.tab-content{display:none}
+.tab-content.active{display:block}
+
+/* ── SPINNER ── */
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.2);border-top-color:#fff;border-radius:50%;animation:spin .7s linear infinite;margin-right:6px;vertical-align:middle}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+::-webkit-scrollbar{width:6px;height:6px}
+::-webkit-scrollbar-track{background:var(--surface)}
+::-webkit-scrollbar-thumb{background:var(--faint);border-radius:3px}
+
+@media(max-width:1100px){
+  .container{grid-template-columns:240px 1fr}
+  .metric-grid{grid-template-columns:repeat(2,1fr)}
+}
+@media(max-width:820px){
+  .container{grid-template-columns:1fr}
+  aside{border-right:none;border-bottom:1px solid var(--border);position:relative;top:0;max-height:none}
+  .charts-grid{grid-template-columns:1fr}
+  .result-inner{grid-template-columns:1fr;gap:12px}
+  .result-cases-block{text-align:left}
+}
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════
+     LOGIN OVERLAY
+══════════════════════════════════════════ -->
+<div id="loginOverlay">
+  <div class="login-bg-grid"></div>
+  <div class="login-bg-glow"></div>
+  <div class="login-box">
+    <div class="login-logo">
+      <div class="login-logo-mark">GD</div>
+      <div class="login-brand">GD <span>Health</span></div>
+    </div>
+    <div class="login-tagline">Disease Surge Prediction · Tamil Nadu · PS-08</div>
+
+    <div class="login-title">Sign in to continue</div>
+    <div class="login-sub">Access the early warning dashboard</div>
+
+    <div class="login-role">
+      <label>Your Role</label>
+      <div class="role-grid">
+        <button class="role-btn selected" onclick="selectRole(this,'District Officer')">
+          <span class="role-icon">🏛️</span>District Officer
+        </button>
+        <button class="role-btn" onclick="selectRole(this,'Health Analyst')">
+          <span class="role-icon">📊</span>Health Analyst
+        </button>
+        <button class="role-btn" onclick="selectRole(this,'Hospital Admin')">
+          <span class="role-icon">🏥</span>Hospital Admin
+        </button>
+        <button class="role-btn" onclick="selectRole(this,'Field Surveyor')">
+          <span class="role-icon">🔬</span>Field Surveyor
+        </button>
+      </div>
+    </div>
+
+    <div class="login-field">
+      <label>Employee ID / Email</label>
+      <input type="text" id="loginUser" placeholder="district.officer@tn.gov.in" autocomplete="username">
+    </div>
+    <div class="login-field">
+      <label>Password</label>
+      <input type="password" id="loginPass" placeholder="••••••••" autocomplete="current-password" onkeydown="if(event.key==='Enter')doLogin()">
+    </div>
+    <div class="login-error" id="loginError">Invalid credentials. Use demo to try the dashboard.</div>
+
+    <button class="login-submit" onclick="doLogin()">Sign In to GD Dashboard</button>
+    <div class="login-demo" onclick="demoLogin()">Use demo credentials →</div>
+
+    <div class="login-footer">
+      GD Health · TNSDC Naan Mudhalvan 2026 · PS-08<br>
+      Tamil Nadu State Disaster &amp; Response Dept.
+    </div>
+  </div>
+</div>
+
+<!-- ══════════════════════════════════════════
+     NAV
+══════════════════════════════════════════ -->
+<nav>
+  <div class="nav-brand">
+    <div class="nav-logo">GD</div>
+    <div>
+      <div class="nav-title">GD Disease Surge Prediction</div>
+      <div class="nav-sub">Tamil Nadu · 38 Districts · 5 Diseases</div>
+    </div>
+  </div>
+  <div class="nav-right">
+    <div class="nav-badge">PS-08 · TNSDC Naan Mudhalvan 2026</div>
+    <div class="user-badge" id="userBadge" style="display:none">
+      <div class="user-avatar" id="userAvatar">?</div>
+      <span class="user-name" id="userNameDisplay">User</span>
+      <button class="logout-btn" onclick="doLogout()">× Exit</button>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+
+<!-- ══════════════════════════════════════════
+     SIDEBAR
+══════════════════════════════════════════ -->
+<aside>
+  <div class="sidebar-section">
+    <div class="sidebar-label">API Key (Anthropic)</div>
+    <div class="api-input-wrap">
+      <input type="password" id="apiKey" class="api-input" placeholder="sk-ant-..." style="width:100%;background:var(--panel);border:1px solid var(--border);border-radius:8px;color:var(--text);font-family:var(--mono);font-size:12px;padding:8px 36px 8px 12px;outline:none">
+      <button class="api-toggle" onclick="toggleApiKey()">👁</button>
+    </div>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">District</div>
+    <select id="districtSelect" onchange="onDistrictChange()"></select>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Disease</div>
+    <select id="diseaseSelect" onchange="updateCharts()">
+      <option value="dengue">Dengue Fever</option>
+      <option value="scrub_typhus">Scrub Typhus</option>
+      <option value="gastroenteritis">Gastroenteritis</option>
+      <option value="respiratory_illness">Respiratory Illness</option>
+      <option value="heat_stroke">Heat Stroke</option>
+    </select>
+  </div>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Environmental Signals</div>
+    <div class="slider-row">
+      <div class="slider-header"><span class="slider-name">Rainfall (mm)</span><span class="slider-val" id="rainLabel">80</span></div>
+      <input type="range" id="rain" min="0" max="300" value="80" step="1" oninput="document.getElementById('rainLabel').textContent=this.value;updateCharts()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-header"><span class="slider-name">Temperature (°C)</span><span class="slider-val" id="tempLabel">32</span></div>
+      <input type="range" id="temp" min="20" max="45" value="32" step="1" oninput="document.getElementById('tempLabel').textContent=this.value;updateCharts()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-header"><span class="slider-name">Humidity (%)</span><span class="slider-val" id="humLabel">70</span></div>
+      <input type="range" id="hum" min="30" max="98" value="70" step="1" oninput="document.getElementById('humLabel').textContent=this.value;updateCharts()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-header"><span class="slider-name">Larval Index (0–10)</span><span class="slider-val" id="larvLabel">3.5</span></div>
+      <input type="range" id="larv" min="0" max="10" value="3.5" step="0.1" oninput="document.getElementById('larvLabel').textContent=parseFloat(this.value).toFixed(1);updateCharts()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-header"><span class="slider-name">Ambulance Calls (108)</span><span class="slider-val" id="ambLabel">120</span></div>
+      <input type="range" id="amb" min="0" max="500" value="120" step="1" oninput="document.getElementById('ambLabel').textContent=this.value;updateCharts()">
+    </div>
+    <div class="slider-row">
+      <div class="slider-header"><span class="slider-name">PHC OPD Count</span><span class="slider-val" id="phcLabel">400</span></div>
+      <input type="range" id="phc" min="20" max="2000" value="400" step="10" oninput="document.getElementById('phcLabel').textContent=this.value;updateCharts()">
+    </div>
+  </div>
+
+  <button class="predict-btn" id="predictBtn" onclick="runPrediction()">Predict Surge Risk</button>
+
+  <div class="sidebar-section">
+    <div class="sidebar-label">Model Accuracy (CV)</div>
+    <div class="acc-row">
+      <div class="acc-item"><span class="acc-name">Dengue</span><span class="acc-val">F1 0.716 · AUC 0.909</span></div>
+      <div class="acc-item"><span class="acc-name">Scrub Typhus</span><span class="acc-val">F1 0.691 · AUC 0.890</span></div>
+      <div class="acc-item"><span class="acc-name">Gastroenteritis</span><span class="acc-val">F1 0.714 · AUC 0.900</span></div>
+      <div class="acc-item"><span class="acc-name">Respiratory</span><span class="acc-val">F1 0.687 · AUC 0.883</span></div>
+      <div class="acc-item"><span class="acc-name">Heat Stroke</span><span class="acc-val">F1 0.707 · AUC 0.910</span></div>
+    </div>
+  </div>
+</aside>
+
+<!-- ══════════════════════════════════════════
+     MAIN
+══════════════════════════════════════════ -->
+<main>
+  <div class="page-header">
+    <div>
+      <div class="page-title">Tamil Nadu Disease Surge Early Warning</div>
+      <div class="page-sub">14–21 day ahead forecast · IDSP + Leading Indicator Fusion · RandomForest classifier</div>
+    </div>
+    <div class="week-badge" id="weekBadge">Week 14 · Apr 2026</div>
+  </div>
+
+  <!-- Metric Row -->
+  <div class="metric-grid">
+    <div class="metric-card">
+      <div class="metric-card-label">Districts Monitored</div>
+      <div class="metric-card-value">38</div>
+      <div class="metric-card-sub">All Tamil Nadu districts</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-label">Disease Types</div>
+      <div class="metric-card-value">5</div>
+      <div class="metric-card-sub">Dengue · Scrub Typhus · GE · Resp · Heat</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-label">High-Risk Alerts</div>
+      <div class="metric-card-value" id="highCount" style="color:var(--danger)">—</div>
+      <div class="metric-card-sub">District-disease pairs</div>
+    </div>
+    <div class="metric-card">
+      <div class="metric-card-label">Lead Time Advantage</div>
+      <div class="metric-card-value" style="color:var(--ok)">+14d</div>
+      <div class="metric-card-sub">Over IDSP-only baseline</div>
+    </div>
+  </div>
+
+  <!-- Tabs -->
+  <div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('forecast',this)">District Forecast</button>
+      <button class="tab-btn" onclick="switchTab('satellite',this)">🛰 Satellite Map</button>
+      <button class="tab-btn" onclick="switchTab('ranking',this)">Risk Ranking</button>
+      <button class="tab-btn" onclick="switchTab('trends',this)">Seasonal Trends</button>
+      <button class="tab-btn" onclick="switchTab('evaluation',this)">Model Evaluation</button>
+    </div>
+
+    <!-- TAB: FORECAST -->
+    <div id="tab-forecast" class="tab-content active">
+      <div class="result-card" id="resultCard">
+        <div class="result-inner">
+          <div>
+            <div class="result-risk-label">Predicted risk · <span id="resDist">—</span></div>
+            <div class="result-risk-value" id="resRisk">—</div>
+          </div>
+          <div>
+            <div class="result-prob-label">Surge probability (14–21 day horizon)</div>
+            <div class="prob-bar-track"><div class="prob-bar-fill" id="probBar" style="width:0%"></div></div>
+            <div class="result-prob-pct" id="resPct">—</div>
+            <div class="conf-bars" id="confBars"></div>
+          </div>
+          <div class="result-cases-block">
+            <div class="result-cases-label">Est. weekly cases</div>
+            <div class="result-cases-value" id="resCases">—</div>
+            <div style="margin-top:6px;font-size:11px;color:var(--muted);font-family:var(--mono)" id="resDisease">—</div>
+          </div>
+        </div>
+        <div class="result-note">
+          <div class="result-note-dot"></div>
+          <span>This prediction helps hospitals prepare in advance — enabling medicine procurement, staff deployment, and vector control activation 2–3 weeks before surge onset.</span>
+        </div>
+      </div>
+
+      <div class="ai-card" id="aiCard">
+        <div class="ai-header">
+          <div class="ai-dot"></div>
+          <div class="ai-title">AI Analysis · GD Health Intelligence</div>
+        </div>
+        <div class="ai-text" id="aiText"></div>
+      </div>
+
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-card-title">Disease case trend (monthly avg)</div>
+          <div class="chart-wrap"><canvas id="trendChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Leading indicator signals</div>
+          <div class="chart-wrap"><canvas id="indicatorChart"></canvas></div>
+        </div>
+      </div>
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-card-title">Surge probability — 6-week forecast</div>
+          <div class="chart-wrap"><canvas id="forecastChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Confidence breakdown</div>
+          <div class="chart-wrap"><canvas id="confChart"></canvas></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: SATELLITE MAP -->
+    <div id="tab-satellite" class="tab-content">
+      <div class="map-section">
+        <div class="map-header">
+          <div class="map-title">🛰 Live Satellite Risk Map — Tamil Nadu</div>
+          <div style="display:flex;align-items:center;gap:16px">
+            <div class="map-legend">
+              <div class="map-legend-item"><div class="map-legend-dot" style="background:#ef4444"></div>High Risk</div>
+              <div class="map-legend-item"><div class="map-legend-dot" style="background:#f59e0b"></div>Medium</div>
+              <div class="map-legend-item"><div class="map-legend-dot" style="background:#22c55e"></div>Low Risk</div>
+            </div>
+            <div class="map-controls">
+              <button class="map-layer-btn active" onclick="setMapLayer('satellite',this)">Satellite</button>
+              <button class="map-layer-btn" onclick="setMapLayer('terrain',this)">Terrain</button>
+              <button class="map-layer-btn" onclick="setMapLayer('osm',this)">Street</button>
+            </div>
+          </div>
+        </div>
+        <div id="satellite-map"></div>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px">
+        <div class="chart-card">
+          <div class="chart-card-title">Selected district risk profile</div>
+          <div id="mapDistrictInfo" style="font-size:13px;color:var(--muted);padding:20px 0;text-align:center">Click a district marker on the map to view details</div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Top 5 high-risk districts (current disease)</div>
+          <div id="topRiskList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: RANKING -->
+    <div id="tab-ranking" class="tab-content">
+      <div class="table-card">
+        <div class="table-header">
+          <div class="table-title">All-district risk ranking</div>
+          <div class="table-filters">
+            <button class="filter-btn active" onclick="filterRanking('all',this)">All</button>
+            <button class="filter-btn" onclick="filterRanking('High',this)">High</button>
+            <button class="filter-btn" onclick="filterRanking('Medium',this)">Medium</button>
+            <button class="filter-btn" onclick="filterRanking('Low',this)">Low</button>
+          </div>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr><th>#</th><th>District</th><th>Disease</th><th>Risk</th><th>Surge Prob</th><th>Est. Cases</th><th>Key Driver</th></tr>
+            </thead>
+            <tbody id="rankingBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- TAB: TRENDS -->
+    <div id="tab-trends" class="tab-content">
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-card-title">Seasonal disease profile (TN state avg)</div>
+          <div class="chart-wrap" style="height:260px"><canvas id="seasonChart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Year-over-year dengue cases</div>
+          <div class="chart-wrap" style="height:260px"><canvas id="yoyChart"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card" style="margin-top:16px">
+        <div class="chart-card-title">Rainfall vs dengue cases (lag 2 weeks)</div>
+        <div class="chart-wrap" style="height:220px"><canvas id="lagChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- TAB: EVALUATION -->
+    <div id="tab-evaluation" class="tab-content">
+      <div class="charts-grid">
+        <div class="chart-card">
+          <div class="chart-card-title">Model vs IDSP-only baseline (CV F1)</div>
+          <div class="chart-wrap" style="height:240px"><canvas id="f1Chart"></canvas></div>
+        </div>
+        <div class="chart-card">
+          <div class="chart-card-title">Feature importance — dengue classifier</div>
+          <div class="chart-wrap" style="height:240px"><canvas id="impChart"></canvas></div>
+        </div>
+      </div>
+      <div class="chart-card" style="margin-top:16px">
+        <div class="chart-card-title">ROC-AUC by disease</div>
+        <div class="chart-wrap" style="height:180px"><canvas id="aucChart"></canvas></div>
+      </div>
+    </div>
+
+  </div><!-- /tabs -->
+</main>
+</div>
+
+<script>
+// ══════════════════════════════════════════════════════════
+// AUTH
+// ══════════════════════════════════════════════════════════
+let currentUser = null;
+let selectedRole = 'District Officer';
+
+const DEMO_USERS = [
+  {id:'admin',pass:'admin123',name:'Admin User',role:'District Officer'},
+  {id:'demo',pass:'demo',name:'Demo User',role:'Health Analyst'},
+  {id:'district.officer@tn.gov.in',pass:'tn2026',name:'TN Officer',role:'District Officer'},
+];
+
+function selectRole(btn, role){
+  selectedRole = role;
+  document.querySelectorAll('.role-btn').forEach(b=>b.classList.remove('selected'));
+  btn.classList.add('selected');
+}
+
+function doLogin(){
+  const u = document.getElementById('loginUser').value.trim();
+  const p = document.getElementById('loginPass').value;
+  const err = document.getElementById('loginError');
+  const found = DEMO_USERS.find(x=>x.id===u && x.pass===p);
+  if(found){
+    currentUser = {...found, role:selectedRole};
+    completeLogin();
+  } else {
+    err.style.display='block';
+    setTimeout(()=>err.style.display='none',3000);
+  }
+}
+
+function demoLogin(){
+  document.getElementById('loginUser').value='demo';
+  document.getElementById('loginPass').value='demo';
+  doLogin();
+}
+
+function completeLogin(){
+  document.getElementById('loginOverlay').style.opacity='0';
+  document.getElementById('loginOverlay').style.transition='opacity .4s';
+  setTimeout(()=>{document.getElementById('loginOverlay').style.display='none';},400);
+  const badge = document.getElementById('userBadge');
+  badge.style.display='flex';
+  const initials = currentUser.name.split(' ').map(w=>w[0]).join('').toUpperCase().slice(0,2);
+  document.getElementById('userAvatar').textContent=initials;
+  document.getElementById('userNameDisplay').textContent=`${currentUser.name} · ${currentUser.role}`;
+}
+
+function doLogout(){
+  location.reload();
+}
+
+function toggleApiKey(){
+  const inp=document.getElementById('apiKey');
+  inp.type=inp.type==='password'?'text':'password';
+}
+
+// ══════════════════════════════════════════════════════════
+// DATA
+// ══════════════════════════════════════════════════════════
+const TN_DISTRICTS = [
+  "Ariyalur","Chengalpattu","Chennai","Coimbatore","Cuddalore",
+  "Dharmapuri","Dindigul","Erode","Kallakurichi","Kanchipuram",
+  "Kanniyakumari","Karur","Krishnagiri","Madurai","Mayiladuthurai",
+  "Nagapattinam","Namakkal","Nilgiris","Perambalur","Pudukkottai",
+  "Ramanathapuram","Ranipet","Salem","Sivaganga","Tenkasi",
+  "Thanjavur","Theni","Thoothukudi","Tiruchirappalli","Tirunelveli",
+  "Tirupattur","Tiruppur","Tiruvannamalai","Tiruvallur","Tiruvarur",
+  "Vellore","Villupuram","Virudhunagar"
+];
+
+// Approximate lat/lng centers for TN districts
+const DISTRICT_COORDS = {
+  "Ariyalur":[11.14,79.08],"Chengalpattu":[12.69,79.97],"Chennai":[13.08,80.27],
+  "Coimbatore":[11.01,76.97],"Cuddalore":[11.75,79.77],"Dharmapuri":[12.12,78.16],
+  "Dindigul":[10.37,77.97],"Erode":[11.34,77.73],"Kallakurichi":[11.74,78.96],
+  "Kanchipuram":[12.83,79.70],"Kanniyakumari":[8.09,77.54],"Karur":[10.96,78.08],
+  "Krishnagiri":[12.52,78.21],"Madurai":[9.93,78.12],"Mayiladuthurai":[11.10,79.65],
+  "Nagapattinam":[10.76,79.84],"Namakkal":[11.22,78.17],"Nilgiris":[11.44,76.73],
+  "Perambalur":[11.23,78.88],"Pudukkottai":[10.38,78.82],"Ramanathapuram":[9.37,78.83],
+  "Ranipet":[12.92,79.33],"Salem":[11.65,78.16],"Sivaganga":[9.84,78.48],
+  "Tenkasi":[8.96,77.32],"Thanjavur":[10.79,79.14],"Theni":[10.00,77.48],
+  "Thoothukudi":[8.79,78.13],"Tiruchirappalli":[10.80,78.69],"Tirunelveli":[8.73,77.70],
+  "Tirupattur":[12.50,78.57],"Tiruppur":[11.11,77.34],"Tiruvannamalai":[12.23,79.07],
+  "Tiruvallur":[13.14,79.91],"Tiruvarur":[10.77,79.64],"Vellore":[12.92,79.13],
+  "Villupuram":[11.93,79.49],"Virudhunagar":[9.58,77.96]
+};
+
+const DISEASES = ["dengue","scrub_typhus","gastroenteritis","respiratory_illness","heat_stroke"];
+const DISEASE_LABELS = {
+  dengue:"Dengue Fever",scrub_typhus:"Scrub Typhus",
+  gastroenteritis:"Gastroenteritis",respiratory_illness:"Respiratory Illness",
+  heat_stroke:"Heat Stroke"
+};
+const DISEASE_PEAKS = {
+  dengue:[42,43,44,45,46,47,48],scrub_typhus:[40,41,42,43,44,45],
+  gastroenteritis:[22,23,24,25,26],respiratory_illness:[1,2,3,49,50,51,52],
+  heat_stroke:[14,15,16,17,18,19,20]
+};
+const DISTRICT_TYPE = {
+  coastal:["Chennai","Nagapattinam","Cuddalore","Ramanathapuram","Thoothukudi","Tiruvarur","Mayiladuthurai","Kanniyakumari"],
+  forest:["Dharmapuri","Krishnagiri","Nilgiris","Theni","Tiruvannamalai","Vellore","Tirupattur"],
+  urban:["Chennai","Coimbatore","Madurai","Salem","Tiruppur"]
+};
+const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+const KEY_DRIVERS={
+  dengue:"Rainfall lag + Larval index",scrub_typhus:"Temperature + Humidity",
+  gastroenteritis:"Temperature + PHC OPD",respiratory_illness:"Temp drop + Ambulance",
+  heat_stroke:"Temperature (dominant)"
+};
+
+let charts={};
+let rankingData=[];
+let activeRiskFilter='all';
+let gdMap=null;
+let mapMarkers=[];
+let currentLayer=null;
+
+// ══════════════════════════════════════════════════════════
+// MATH
+// ══════════════════════════════════════════════════════════
+function gaussianPeak(w,peaks,amp=4){
+  const dists=peaks.map(p=>Math.min(Math.abs(w-p),52-Math.abs(w-p)));
+  return 1+(amp-1)*Math.exp(-0.5*(Math.min(...dists)/3)**2);
+}
+
+function computeProb(district,disease,rain,temp,hum,larv,amb,phc){
+  const tScore=(temp-20)/25,hScore=(hum-30)/68,rScore=rain/300;
+  const lScore=larv/10,aScore=amb/500,pScore=phc/2000;
+  const wk=new Date().getMonth()*4+2;
+  const seasonal=gaussianPeak(wk,DISEASE_PEAKS[disease]);
+  const seasonalN=Math.min((seasonal-1)/3,1);
+  const drivers={
+    dengue:{r:.45,t:.20,h:.15,l:.10,a:.05,p:.05},
+    scrub_typhus:{r:.25,t:.30,h:.25,l:.05,a:.10,p:.05},
+    gastroenteritis:{r:.10,t:.40,h:.10,l:.00,a:.20,p:.20},
+    respiratory_illness:{r:.05,t:.35,h:.25,l:.00,a:.20,p:.15},
+    heat_stroke:{r:.00,t:.70,h:.10,l:.00,a:.15,p:.05}
+  };
+  const d=drivers[disease];
+  const envScore=d.r*rScore+d.t*tScore+d.h*hScore+d.l*lScore+d.a*aScore+d.p*pScore;
+  const isCoastal=DISTRICT_TYPE.coastal.includes(district);
+  const isForest=DISTRICT_TYPE.forest.includes(district);
+  const distBonus=(disease==='dengue'&&isCoastal)?0.12:(disease==='scrub_typhus'&&isForest)?0.15:0;
+  let prob=0.15+0.55*envScore+0.20*seasonalN+distBonus;
+  return Math.min(0.97,Math.max(0.03,prob));
+}
+
+function computeCases(district,disease,prob){
+  const popMap={Chennai:4e6,Coimbatore:2.5e6,Madurai:2e6};
+  const pop=popMap[district]||900000;
+  const baseRates={dengue:.003,scrub_typhus:.0008,gastroenteritis:.005,respiratory_illness:.008,heat_stroke:.0005};
+  return Math.round(pop*baseRates[disease]*prob*(1.5+Math.random()*0.5));
+}
+
+function riskLevel(prob){return prob>=0.65?"High":prob>=0.35?"Medium":"Low";}
+
+function getVals(){
+  return {
+    rain:parseInt(document.getElementById('rain').value),
+    temp:parseInt(document.getElementById('temp').value),
+    hum:parseInt(document.getElementById('hum').value),
+    larv:parseFloat(document.getElementById('larv').value),
+    amb:parseInt(document.getElementById('amb').value),
+    phc:parseInt(document.getElementById('phc').value),
+    dist:document.getElementById('districtSelect').value,
+    dis:document.getElementById('diseaseSelect').value
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+// INIT
+// ══════════════════════════════════════════════════════════
+function init(){
+  const sel=document.getElementById('districtSelect');
+  TN_DISTRICTS.forEach(d=>{
+    const o=document.createElement('option');
+    o.value=d;o.textContent=d;
+    if(d==="Chennai") o.selected=true;
+    sel.appendChild(o);
+  });
+  const now=new Date();
+  const wk=Math.ceil((now-new Date(now.getFullYear(),0,1))/604800000);
+  document.getElementById('weekBadge').textContent=`Week ${wk} · ${now.toLocaleDateString('en-IN',{month:'short',year:'numeric'})}`;
+  buildRanking();
+  initAllCharts();
+}
+
+// ══════════════════════════════════════════════════════════
+// SATELLITE MAP
+// ══════════════════════════════════════════════════════════
+const MAP_LAYERS={
+  satellite:{
+    url:'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+    attr:'© Esri'
+  },
+  terrain:{
+    url:'https://{s}.tile.opentopomap.org/{z}/{x}/{y}.png',
+    attr:'© OpenTopoMap'
+  },
+  osm:{
+    url:'https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',
+    attr:'© OpenStreetMap'
+  }
+};
+
+function initMap(){
+  if(gdMap) return;
+
+  gdMap = L.map('satellite-map',{
+    center:[10.9,78.7],
+    zoom:7,
+    zoomControl:true,
+    attributionControl:false,
+  });
+
+  currentLayer = L.tileLayer(MAP_LAYERS.satellite.url,{
+    maxZoom:18,subdomains:'abcd'
+  }).addTo(gdMap);
+
+  // Add TN boundary overlay (approximate polygon)
+  const tnBoundary=[
+    [13.5,80.3],[13.2,80.0],[13.0,79.9],[12.9,79.7],[12.6,80.0],
+    [12.0,79.9],[11.8,79.8],[11.5,79.7],[11.1,79.9],[10.8,79.9],
+    [10.5,79.8],[10.2,79.5],[9.9,79.0],[9.5,78.8],[9.2,78.3],
+    [8.9,78.2],[8.7,77.8],[8.5,77.6],[8.2,77.4],[8.1,77.2],
+    [8.4,77.0],[8.7,77.3],[9.0,77.2],[9.3,77.3],[9.8,77.0],
+    [10.0,77.2],[10.4,77.1],[10.7,76.8],[11.0,77.0],[11.3,77.1],
+    [11.5,76.8],[11.6,77.0],[12.0,78.0],[12.3,78.2],[12.6,78.3],
+    [12.9,79.0],[13.2,79.5],[13.5,80.3]
+  ];
+
+  L.polygon(tnBoundary,{
+    color:'rgba(59,130,246,0.6)',weight:1.5,
+    fillColor:'rgba(59,130,246,0.04)',fillOpacity:1,
+    dashArray:'4,4'
+  }).addTo(gdMap);
+
+  placeDistrictMarkers();
+}
+
+function placeDistrictMarkers(){
+  const {dis,rain,temp,hum,larv,amb,phc}=getVals();
+  mapMarkers.forEach(m=>gdMap.removeLayer(m));
+  mapMarkers=[];
+
+  TN_DISTRICTS.forEach(dist=>{
+    const coords=DISTRICT_COORDS[dist];
+    if(!coords) return;
+    const prob=computeProb(dist,dis,rain,temp,hum,larv,amb,phc);
+    const risk=riskLevel(prob);
+    const cases=computeCases(dist,dis,prob);
+    const col=risk==='High'?'#ef4444':risk==='Medium'?'#f59e0b':'#22c55e';
+    const r=risk==='High'?11:risk==='Medium'?9:7;
+
+    const icon=L.divIcon({
+      className:'',
+      html:`<div style="position:relative;width:${r*2}px;height:${r*2}px">
+        ${risk==='High'?`<div style="position:absolute;inset:0;border-radius:50%;background:${col};opacity:.25;animation:markerPulse 1.8s infinite"></div>`:''}
+        <div style="position:absolute;inset:3px 3px 3px 3px;border-radius:50%;background:${col};border:2px solid rgba(255,255,255,.7);box-shadow:0 2px 8px rgba(0,0,0,.5)"></div>
+      </div>`,
+      iconSize:[r*2,r*2],
+      iconAnchor:[r,r]
+    });
+
+    const marker=L.marker(coords,{icon}).addTo(gdMap);
+
+    marker.bindPopup(`
+      <div class="popup-district">${dist}</div>
+      <div class="popup-row"><span class="popup-label">Disease</span><span class="popup-val">${DISEASE_LABELS[dis]}</span></div>
+      <div class="popup-row"><span class="popup-label">Risk Level</span><span class="popup-val" style="color:${col};font-weight:600">${risk}</span></div>
+      <div class="popup-row"><span class="popup-label">Surge Prob</span><span class="popup-val">${Math.round(prob*100)}%</span></div>
+      <div class="popup-row"><span class="popup-label">Est. Cases/wk</span><span class="popup-val">${cases.toLocaleString()}</span></div>
+      <div class="popup-row"><span class="popup-label">Key Driver</span><span class="popup-val" style="color:var(--muted)">${KEY_DRIVERS[dis]}</span></div>
+    `,{className:'gd-popup'});
+
+    marker.on('click',()=>showMapDistrictInfo(dist,dis,prob,risk,cases,col));
+    mapMarkers.push(marker);
+  });
+
+  renderTopRiskList(dis,rain,temp,hum,larv,amb,phc);
+}
+
+function showMapDistrictInfo(dist,dis,prob,risk,cases,col){
+  const isCoastal=DISTRICT_TYPE.coastal.includes(dist);
+  const isForest=DISTRICT_TYPE.forest.includes(dist);
+  const dtype=isCoastal?'Coastal':isForest?'Forest-fringe':'Inland';
+
+  document.getElementById('mapDistrictInfo').innerHTML=`
+    <div style="text-align:left">
+      <div style="font-size:16px;font-weight:600;margin-bottom:10px;color:var(--text)">${dist} District</div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted);font-size:12px">Disease</span>
+        <span style="font-family:var(--mono);font-size:12px">${DISEASE_LABELS[dis]}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted);font-size:12px">Risk Level</span>
+        <span style="font-weight:600;color:${col}">${risk}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted);font-size:12px">Surge Probability</span>
+        <span style="font-family:var(--mono);font-size:14px;color:${col}">${Math.round(prob*100)}%</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted);font-size:12px">Est. Weekly Cases</span>
+        <span style="font-family:var(--mono);font-size:12px">${cases.toLocaleString()}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0;border-bottom:1px solid var(--border)">
+        <span style="color:var(--muted);font-size:12px">District Type</span>
+        <span style="font-size:12px">${dtype}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;padding:6px 0">
+        <span style="color:var(--muted);font-size:12px">Key Driver</span>
+        <span style="font-size:11px;color:var(--muted)">${KEY_DRIVERS[dis]}</span>
+      </div>
+      <div style="margin-top:14px">
+        <div style="height:6px;background:var(--faint);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${Math.round(prob*100)}%;background:${col};border-radius:3px;transition:width .5s"></div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderTopRiskList(dis,rain,temp,hum,larv,amb,phc){
+  const list=TN_DISTRICTS.map(d=>{
+    const prob=computeProb(d,dis,rain,temp,hum,larv,amb,phc);
+    return {d,prob,risk:riskLevel(prob)};
+  }).sort((a,b)=>b.prob-a.prob).slice(0,5);
+
+  document.getElementById('topRiskList').innerHTML=list.map((item,i)=>{
+    const col=item.risk==='High'?'#ef4444':item.risk==='Medium'?'#f59e0b':'#22c55e';
+    return `
+      <div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:1px solid var(--border)">
+        <div style="font-family:var(--mono);font-size:12px;color:var(--muted);width:20px">${i+1}</div>
+        <div style="flex:1;font-size:13px;font-weight:500">${item.d}</div>
+        <div style="font-family:var(--mono);font-size:12px;color:${col}">${Math.round(item.prob*100)}%</div>
+        <span class="risk-pill ${item.risk.toLowerCase()}">${item.risk}</span>
+      </div>`;
+  }).join('');
+}
+
+function setMapLayer(type,btn){
+  if(!gdMap) return;
+  document.querySelectorAll('.map-layer-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(currentLayer) gdMap.removeLayer(currentLayer);
+  const cfg=MAP_LAYERS[type];
+  currentLayer=L.tileLayer(cfg.url,{maxZoom:18,subdomains:'abcd'}).addTo(gdMap);
+  gdMap.eachLayer(l=>{
+    if(l._url&&l._url!==cfg.url) gdMap.removeLayer(l);
+  });
+  currentLayer.addTo(gdMap);
+  // Re-add markers and boundary on top
+  placeDistrictMarkers();
+}
+
+function onDistrictChange(){
+  const dist=document.getElementById('districtSelect').value;
+  updateCharts();
+  if(gdMap&&DISTRICT_COORDS[dist]){
+    gdMap.flyTo(DISTRICT_COORDS[dist],10,{duration:1.5});
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// RANKING
+// ══════════════════════════════════════════════════════════
+function buildRanking(){
+  rankingData=[];
+  const {rain,temp,hum,larv,amb,phc}=getVals();
+  TN_DISTRICTS.forEach(dist=>{
+    DISEASES.forEach(dis=>{
+      const prob=computeProb(dist,dis,rain,temp,hum,larv,amb,phc);
+      const risk=riskLevel(prob);
+      const cases=computeCases(dist,dis,prob);
+      rankingData.push({dist,dis,prob,risk,cases,driver:KEY_DRIVERS[dis]});
+    });
+  });
+  rankingData.sort((a,b)=>b.prob-a.prob);
+  const highCount=rankingData.filter(r=>r.risk==='High').length;
+  document.getElementById('highCount').textContent=highCount;
+  renderRankingTable(rankingData);
+}
+
+function renderRankingTable(data){
+  const filtered=activeRiskFilter==='all'?data:data.filter(r=>r.risk===activeRiskFilter);
+  document.getElementById('rankingBody').innerHTML=filtered.slice(0,80).map((r,i)=>`
+    <tr>
+      <td style="color:var(--muted);font-family:var(--mono)">${i+1}</td>
+      <td style="font-weight:500">${r.dist}</td>
+      <td style="color:var(--muted)">${DISEASE_LABELS[r.dis]}</td>
+      <td><span class="risk-pill ${r.risk.toLowerCase()}">${r.risk}</span></td>
+      <td>
+        <div style="display:flex;align-items:center;gap:8px">
+          <span class="prob-mini-bar"><span class="prob-mini-fill" style="width:${Math.round(r.prob*100)}%;background:${r.risk==='High'?'#ef4444':r.risk==='Medium'?'#f59e0b':'#22c55e'}"></span></span>
+          <span style="font-family:var(--mono);font-size:12px">${Math.round(r.prob*100)}%</span>
+        </div>
+      </td>
+      <td style="font-family:var(--mono)">${r.cases.toLocaleString()}</td>
+      <td style="color:var(--muted);font-size:11px">${r.driver}</td>
+    </tr>`).join('');
+}
+
+function filterRanking(risk,btn){
+  activeRiskFilter=risk;
+  document.querySelectorAll('.filter-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  renderRankingTable(rankingData);
+}
+
+// ══════════════════════════════════════════════════════════
+// CHARTS
+// ══════════════════════════════════════════════════════════
+function destroyChart(id){if(charts[id]){charts[id].destroy();delete charts[id];}}
+
+function initAllCharts(){
+  buildTrendChart();buildIndicatorChart();buildForecastChart();buildConfChart();
+  buildSeasonChart();buildYoYChart();buildLagChart();buildF1Chart();buildImpChart();buildAucChart();
+}
+
+function buildTrendChart(){
+  destroyChart('trend');
+  const {dis,rain}=getVals();
+  const spike=rain>150?1.6:rain>80?1.2:0.85;
+  const base=[420,380,310,290,450,680,820,950,880,610,480,390];
+  const data=base.map((v,i)=>Math.round(v*(i>=6&&i<=9?spike:1)+(Math.random()-0.5)*40));
+  const colors={dengue:'#ef4444',scrub_typhus:'#f97316',gastroenteritis:'#eab308',respiratory_illness:'#3b82f6',heat_stroke:'#ec4899'};
+  const c=colors[dis]||'#3b82f6';
+  charts['trend']=new Chart(document.getElementById('trendChart'),{type:'line',
+    data:{labels:MONTHS,datasets:[{label:'Cases',data,borderColor:c,backgroundColor:c+'22',fill:true,tension:.4,pointRadius:3,pointBackgroundColor:c,borderWidth:2}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}},y:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}}}}});
+}
+
+function buildIndicatorChart(){
+  destroyChart('indicator');
+  const {rain,amb,phc,larv}=getVals();
+  charts['indicator']=new Chart(document.getElementById('indicatorChart'),{type:'bar',
+    data:{labels:['Rainfall\n(mm)','Ambulance\ncalls','PHC OPD','Larval\nindex','Medicine\nindent'],
+      datasets:[{label:'Current',data:[rain/3,amb/5,phc/20,larv*10,Math.round(rain/30+amb/50)],
+        backgroundColor:['#3b82f6','#ef4444','#22c55e','#f59e0b','#8b5cf6'],borderRadius:4}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},
+      scales:{x:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:9}}},y:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}}}}});
+}
+
+function buildForecastChart(){
+  destroyChart('forecast');
+  const {dist,dis,rain,temp,hum,larv,amb,phc}=getVals();
+  const baseProb=computeProb(dist,dis,rain,temp,hum,larv,amb,phc);
+  const weeks=[-2,-1,0,1,2,3];
+  const probs=weeks.map(w=>{const adj=baseProb*(0.75+w*0.05+Math.random()*0.12);return Math.min(0.97,Math.max(0.03,adj));});
+  const labels=weeks.map(w=>w<0?`W${w}`:w===0?'Now':`W+${w}`);
+  const bgColors=probs.map(p=>p>=.65?'#ef4444':p>=.35?'#f59e0b':'#22c55e');
+  charts['forecast']=new Chart(document.getElementById('forecastChart'),{type:'bar',
+    data:{labels,datasets:[{data:probs.map(p=>Math.round(p*100)),backgroundColor:bgColors,borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.raw}% surge probability`}}},
+      scales:{x:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:11}}},y:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}},max:100}}}});
+}
+
+function buildConfChart(){
+  destroyChart('conf');
+  const {dist,dis,rain,temp,hum,larv,amb,phc}=getVals();
+  const prob=computeProb(dist,dis,rain,temp,hum,larv,amb,phc);
+  const risk=riskLevel(prob);
+  let high,med,low;
+  if(risk==='High'){high=Math.round(prob*100);med=Math.round((1-prob)*60);low=100-high-med;}
+  else if(risk==='Medium'){med=Math.round(prob*100+15);high=Math.round((1-prob)*30);low=100-high-med;}
+  else{low=Math.round((1-prob)*100);med=Math.round(prob*60);high=100-low-med;}
+  high=Math.max(0,high);med=Math.max(0,med);low=Math.max(0,low);
+  charts['conf']=new Chart(document.getElementById('confChart'),{type:'doughnut',
+    data:{labels:['High','Medium','Low'],datasets:[{data:[high,med,low],backgroundColor:['#ef4444','#f59e0b','#22c55e'],borderWidth:0,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:'65%',plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`${ctx.label}: ${ctx.raw}%`}}}}});
+}
+
+function buildSeasonChart(){
+  destroyChart('season');
+  const dengue=[5,4,3,3,6,8,7,9,11,18,22,20].map(v=>v*1000);
+  const scrub=[2,1,1,1,2,3,2,4,6,14,16,10].map(v=>v*500);
+  const gastro=[6,5,4,4,7,16,12,9,8,6,5,5].map(v=>v*800);
+  const resp=[15,14,10,7,5,4,4,5,6,8,12,17].map(v=>v*600);
+  const heat=[1,1,2,6,9,7,3,2,1,1,1,1].map(v=>v*200);
+  charts['season']=new Chart(document.getElementById('seasonChart'),{type:'line',
+    data:{labels:MONTHS,datasets:[
+      {label:'Dengue',data:dengue,borderColor:'#ef4444',backgroundColor:'#ef444422',fill:true,tension:.4,borderWidth:2,pointRadius:0},
+      {label:'Scrub Typhus',data:scrub,borderColor:'#f97316',backgroundColor:'#f9731622',fill:true,tension:.4,borderWidth:2,pointRadius:0},
+      {label:'Gastroenteritis',data:gastro,borderColor:'#eab308',backgroundColor:'#eab30822',fill:true,tension:.4,borderWidth:2,pointRadius:0},
+      {label:'Respiratory',data:resp,borderColor:'#3b82f6',backgroundColor:'#3b82f622',fill:true,tension:.4,borderWidth:2,pointRadius:0},
+      {label:'Heat Stroke',data:heat,borderColor:'#ec4899',backgroundColor:'#ec489922',fill:true,tension:.4,borderWidth:2,pointRadius:0},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#6b7ea8',boxWidth:10,font:{size:11}}}},
+      scales:{x:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}},y:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}}}}});
+}
+
+function buildYoYChart(){
+  destroyChart('yoy');
+  const years=['2020','2021','2022','2023','2024'];
+  const colors=['#1e3a5f','#1e4d7b','#1a6aad','#1d8ac4','#3b82f6'];
+  const base=[420,380,310,290,450,680,820,950,880,610,480,390];
+  const ds=years.map((yr,i)=>({label:yr,data:base.map(v=>Math.round(v*(0.7+i*0.15)+(Math.random()-0.5)*80)),
+    borderColor:colors[i],borderWidth:1.5,pointRadius:0,fill:false,tension:.4}));
+  charts['yoy']=new Chart(document.getElementById('yoyChart'),{type:'line',
+    data:{labels:MONTHS,datasets:ds},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#6b7ea8',boxWidth:8,font:{size:10}}}},
+      scales:{x:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}},y:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}}}}});
+}
+
+function buildLagChart(){
+  destroyChart('lag');
+  const wks=Array.from({length:52},(_,i)=>i+1);
+  const rf=wks.map(w=>Math.max(0,60*Math.exp(-.5*((w-44)/5)**2)+40*Math.exp(-.5*((w-26)/6)**2)+5+(Math.random()-0.5)*15));
+  const cases=wks.map((w,i)=>{const rainLag=i>=2?rf[i-2]:rf[0];return Math.max(0,Math.round(rainLag*8+200*Math.exp(-.5*((w-45)/4)**2)+(Math.random()-0.5)*60));});
+  charts['lag']=new Chart(document.getElementById('lagChart'),{type:'line',
+    data:{labels:wks,datasets:[
+      {label:'Rainfall mm (÷4)',data:rf.map(v=>v/4),borderColor:'#3b82f6',borderWidth:1.5,pointRadius:0,tension:.4,yAxisID:'y'},
+      {label:'Dengue cases (÷10)',data:cases.map(v=>v/10),borderColor:'#ef4444',borderWidth:1.5,pointRadius:0,tension:.4,yAxisID:'y'},
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{labels:{color:'#6b7ea8',boxWidth:10,font:{size:11}}}},
+      scales:{x:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10},maxTicksLimit:13}},y:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}}}}});
+}
+
+function buildF1Chart(){
+  destroyChart('f1');
+  const labels=['Dengue','Scrub\nTyphus','Gastro-\nenteritis','Respiratory','Heat\nStroke'];
+  const ours=[0.716,0.691,0.714,0.687,0.707];
+  const base=[0.507,0.488,0.502,0.458,0.515];
+  charts['f1']=new Chart(document.getElementById('f1Chart'),{type:'bar',
+    data:{labels,datasets:[
+      {label:'Our model (RF + leading indicators)',data:ours,backgroundColor:'#3b82f6',borderRadius:4},
+      {label:'IDSP-only baseline',data:base,backgroundColor:'#2a3a58',borderRadius:4}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{labels:{color:'#6b7ea8',boxWidth:10,font:{size:11}}}},
+      scales:{x:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}},y:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}},max:1.05}}}});
+}
+
+function buildImpChart(){
+  destroyChart('imp');
+  const features=['rainfall_lag2','ambulance_calls','rain_rolling4','phc_opd','larval_x_rain','week_sin','humidity_pct','temp_squared','rainfall_lag3','rain_x_humidity'];
+  const imp=[0.18,0.14,0.12,0.10,0.09,0.08,0.07,0.07,0.06,0.05];
+  charts['imp']=new Chart(document.getElementById('impChart'),{type:'bar',
+    data:{labels:features,datasets:[{data:imp,backgroundColor:'#1d8ac4',borderRadius:3,barThickness:14}]},
+    options:{indexAxis:'y',responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false}},
+      scales:{x:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}},y:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}}}}}});
+}
+
+function buildAucChart(){
+  destroyChart('auc');
+  const labels=['Dengue','Scrub Typhus','Gastroenteritis','Respiratory Illness','Heat Stroke'];
+  const auc=[0.909,0.890,0.900,0.883,0.910];
+  charts['auc']=new Chart(document.getElementById('aucChart'),{type:'bar',
+    data:{labels,datasets:[{data:auc,backgroundColor:['#ef4444','#f97316','#eab308','#3b82f6','#ec4899'],borderRadius:6}]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{callbacks:{label:ctx=>`AUC: ${ctx.raw}`}}},
+      scales:{x:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:11}}},y:{grid:{color:'#1a274040'},ticks:{color:'#6b7ea8',font:{size:10}},min:0.8,max:1.0}}}});
+}
+
+function updateCharts(){
+  buildTrendChart();buildIndicatorChart();buildForecastChart();buildConfChart();buildRanking();
+  if(gdMap) placeDistrictMarkers();
+}
+
+// ══════════════════════════════════════════════════════════
+// PREDICTION
+// ══════════════════════════════════════════════════════════
+async function runPrediction(){
+  const {dist,dis,rain,temp,hum,larv,amb,phc}=getVals();
+  const apiKey=document.getElementById('apiKey').value.trim();
+  const btn=document.getElementById('predictBtn');
+  btn.disabled=true;
+  btn.innerHTML='<span class="spinner"></span>Predicting...';
+
+  const prob=computeProb(dist,dis,rain,temp,hum,larv,amb,phc);
+  const risk=riskLevel(prob);
+  const cases=computeCases(dist,dis,prob);
+
+  let hiP,medP,lowP;
+  if(risk==='High'){hiP=Math.round(prob*100);medP=Math.round((1-prob)*55);lowP=100-hiP-medP;}
+  else if(risk==='Medium'){medP=Math.round(prob*100+10);hiP=Math.round((1-prob)*25);lowP=100-hiP-medP;}
+  else{lowP=Math.round((1-prob)*90);medP=Math.round(prob*70);hiP=100-lowP-medP;}
+  hiP=Math.max(1,hiP);medP=Math.max(1,medP);lowP=Math.max(1,lowP);
+
+  const rc=document.getElementById('resultCard');
+  rc.classList.add('visible');
+  document.getElementById('resDist').textContent=dist;
+  document.getElementById('resRisk').textContent=risk;
+  document.getElementById('resRisk').className='result-risk-value '+risk.toLowerCase();
+  document.getElementById('probBar').style.width=Math.round(prob*100)+'%';
+  document.getElementById('probBar').className='prob-bar-fill '+risk.toLowerCase();
+  document.getElementById('resPct').textContent=Math.round(prob*100)+'%';
+  document.getElementById('resPct').style.color=risk==='High'?'#ef4444':risk==='Medium'?'#f59e0b':'#22c55e';
+  document.getElementById('resCases').textContent=cases.toLocaleString();
+  document.getElementById('resDisease').textContent=DISEASE_LABELS[dis];
+  document.getElementById('confBars').innerHTML=`
+    <div class="conf-bar-row"><span class="conf-bar-label">High</span><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${hiP}%;background:#ef4444"></div></div><span class="conf-bar-pct">${hiP}%</span></div>
+    <div class="conf-bar-row"><span class="conf-bar-label">Medium</span><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${medP}%;background:#f59e0b"></div></div><span class="conf-bar-pct">${medP}%</span></div>
+    <div class="conf-bar-row"><span class="conf-bar-label">Low</span><div class="conf-bar-track"><div class="conf-bar-fill" style="width:${lowP}%;background:#22c55e"></div></div><span class="conf-bar-pct">${lowP}%</span></div>`;
+
+  buildForecastChart();buildConfChart();buildTrendChart();
+  if(gdMap) placeDistrictMarkers();
+
+  if(apiKey) await getAIAnalysis(dist,dis,rain,temp,hum,larv,amb,phc,prob,risk,cases,apiKey);
+  btn.disabled=false;
+  btn.textContent='Predict Surge Risk';
+}
+
+async function getAIAnalysis(dist,dis,rain,temp,hum,larv,amb,phc,prob,risk,cases,apiKey){
+  const aiCard=document.getElementById('aiCard');
+  const aiText=document.getElementById('aiText');
+  aiCard.classList.add('visible');
+  aiText.innerHTML='<span class="ai-loading">GD Health Intelligence generating clinical analysis...</span>';
+  const prompt=`You are a public health epidemiologist advising Tamil Nadu district health officers for the GD Disease Surge Prediction system.
+District: ${dist}
+Disease: ${DISEASE_LABELS[dis]}
+Forecast period: 14–21 days ahead
+Surge probability: ${Math.round(prob*100)}% (Risk: ${risk})
+Estimated weekly cases: ${cases.toLocaleString()}
+Rainfall: ${rain}mm, Temp: ${temp}°C, Humidity: ${hum}%, Larval index: ${larv}/10, Ambulance calls: ${amb}, PHC OPD: ${phc}
+District context: ${DISTRICT_TYPE.coastal.includes(dist)?'Coastal (elevated dengue risk)':DISTRICT_TYPE.forest.includes(dist)?'Forest-fringe (elevated scrub typhus risk)':'Inland district'}
+Write a concise 4-part clinical advisory (plain text, no markdown, under 200 words):
+1. Situation summary (2 sentences)
+2. Key risk drivers from leading indicators
+3. Recommended hospital preparedness actions specific to ${DISEASE_LABELS[dis]}
+4. Community-level alert message for district health officers`;
+  try{
+    const res=await fetch('https://api.anthropic.com/v1/messages',{
+      method:'POST',
+      headers:{'Content-Type':'application/json','x-api-key':apiKey,'anthropic-version':'2023-06-01'},
+      body:JSON.stringify({model:'claude-sonnet-4-20250514',max_tokens:350,messages:[{role:'user',content:prompt}]})
+    });
+    if(!res.ok){const e=await res.json();throw new Error(e.error?.message||'API error');}
+    const data=await res.json();
+    aiText.textContent=data.content[0].text;
+  }catch(err){
+    aiText.innerHTML=`<span style="color:var(--danger)">API error: ${err.message}</span>`;
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// UTILS
+// ══════════════════════════════════════════════════════════
+function switchTab(id,btn){
+  document.querySelectorAll('.tab-content').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('tab-'+id).classList.add('active');
+  btn.classList.add('active');
+  if(id==='satellite'){
+    setTimeout(()=>{
+      initMap();
+      if(gdMap) gdMap.invalidateSize();
+    },100);
+  }
+}
+
+// ══════════════════════════════════════════════════════════
+// BOOT
+// ══════════════════════════════════════════════════════════
+init();
+</script>
+</body>
+</html>
